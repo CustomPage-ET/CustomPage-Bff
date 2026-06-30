@@ -1,4 +1,5 @@
 package custompage.bff.exception;
 
-public class BffIntegrationException {
+public class BffIntegrationException extends RuntimeException {
+    public BffIntegrationException(String message) { super(message); }
 }
