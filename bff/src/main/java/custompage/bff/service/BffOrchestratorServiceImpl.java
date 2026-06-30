@@ -36,16 +36,16 @@ public class BffOrchestratorServiceImpl implements IBffOrchestratorService {
     @Override
     @CircuitBreaker(name = "backendEcosistema", fallbackMethod = "fallbackDashboard")
     public DashboardTiendaDTO orquestarDashboardTienda(Long idEmpresa) {
-        // 1. Llamada al microservicio de Configuración Estética
+        // 1. Llamar al microservicio de Configuración Estética (SaaS)
         String urlTiendaConfig = urlConfig + "/tienda/" + idEmpresa;
         DashboardTiendaDTO configResponse = restTemplate.getForObject(urlTiendaConfig, DashboardTiendaDTO.class);
 
-        // 2. Llamada en paralelo lógico al catálogo de Productos de la PYME
+        // 2. Llamar al catálogo de Productos de la PYME de Cosméticos
         String urlCatalogo = urlProducts + "/empresa/" + idEmpresa;
         ProductoBffDTO[] productosArray = restTemplate.getForObject(urlCatalogo, ProductoBffDTO[].class);
         List<ProductoBffDTO> productos = Arrays.asList(productosArray);
 
-        // 3. Orquestación combinada
+        // 3. Consolidar la respuesta unificada para el Frontend
         return DashboardTiendaDTO.builder()
                 .idEmpresa(idEmpresa)
                 .estetica(configResponse.getEstetica())
@@ -79,25 +79,45 @@ public class BffOrchestratorServiceImpl implements IBffOrchestratorService {
         return restTemplate.getForObject(urlMarketing + "/cupones/" + codigo, PromocionBffDTO.class);
     }
 
+    @Override
+    @CircuitBreaker(name = "backendEcosistema", fallbackMethod = "fallbackProductoAccion")
+    public ProductoBffDTO crearOActualizarProducto(ProductoBffDTO dto) {
+        return restTemplate.postForObject(urlProducts, dto, ProductoBffDTO.class);
+    }
+
+    @Override
+    @CircuitBreaker(name = "backendEcosistema", fallbackMethod = "fallbackProductoVoid")
+    public void eliminarProducto(Long idProducto) {
+        String urlDelete = urlProducts + "/" + idProducto;
+        restTemplate.delete(urlDelete);
+    }
+
     public AuthResponseDTO fallbackLogin(AuthRequestDTO dto, Throwable e) {
-        throw new BffIntegrationException("Servicio de autenticación no disponible. Detalles: " + e.getMessage());
+        throw new BffIntegrationException("El portal de accesos no está disponible en este momento. Intente más tarde.");
     }
 
     public DashboardTiendaDTO fallbackDashboard(Long idEmpresa, Throwable e) {
-        // Fallback elegante: si cae la visual o productos, devolvemos un cascarón por defecto para que la pantalla no muera
         return DashboardTiendaDTO.builder()
                 .idEmpresa(idEmpresa)
-                .estetica(EsteticaBffDTO.builder().paletaColores("Pastel").fuenteTexto("Roboto").urlLogo("").build())
+                .estetica(EsteticaBffDTO.builder().paletaColores("Default/Pastel").fuenteTexto("Montserrat").urlLogo("").build())
                 .modulosActivos(new ArrayList<>())
                 .catalogoProductos(new ArrayList<>())
                 .build();
     }
 
     public OrdenBffDTO fallbackOrden(Throwable e) {
-        throw new BffIntegrationException("El módulo de facturación y pasarela de órdenes no responde. Operación cancelada de forma segura.");
+        throw new BffIntegrationException("La pasarela de cobros y órdenes está en mantenimiento. Su cuenta no ha sufrido cargos.");
     }
 
     public List<PromocionBffDTO> fallbackPromociones(Throwable e) {
-        return new ArrayList<>(); // Si marketing está caído, se muestran 0 cupones activos, pero se deja seguir navegando.
+        return new ArrayList<>(); // Si marketing falla, cargamos 0 banners, pero el e-commerce sigue vendiendo
+    }
+
+    public ProductoBffDTO fallbackProductoAccion(ProductoBffDTO dto, Throwable e) {
+        throw new BffIntegrationException("Imposible procesar la modificación del inventario. El microservicio de productos está inaccesible.");
+    }
+
+    public void fallbackProductoVoid(Long idProducto, Throwable e) {
+        throw new BffIntegrationException("No se pudo dar de baja el producto cosmético. Error de comunicación con almacenes.");
     }
 }

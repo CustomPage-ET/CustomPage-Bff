@@ -10,4 +10,6 @@ public interface IBffOrchestratorService {
     OrdenBffDTO delegarPagoVenta(Long idOrden, String metodoPago);
     List<PromocionBffDTO> obtenerPromocionesMarketing();
     PromocionBffDTO validarCupon(String codigo);
+    ProductoBffDTO crearOActualizarProducto(ProductoBffDTO dto);
+    void eliminarProducto(Long idProducto);
 }
